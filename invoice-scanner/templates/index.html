@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#3B59FE">
+<title>发票扫码助手</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        primary: '#3B59FE',
+        'primary-dark': '#2A45E0',
+        'primary-light': '#EEF1FF',
+        success: '#00B578',
+        'success-light': '#E8F8F0',
+        danger: '#FF4D4F',
+        'danger-light': '#FFF1F0',
+        'bg-page': '#F0F2F5',
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .card {
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.06);
+  }
+  .scan-btn {
+    background: linear-gradient(135deg, #3B59FE 0%, #6C8CFF 100%);
+    box-shadow: 0 4px 20px rgba(59, 89, 254, 0.35);
+  }
+  .scan-btn:active { transform: scale(0.97); box-shadow: 0 2px 10px rgba(59, 89, 254, 0.25); }
+  .invoice-card {
+    animation: slideIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .invoice-card:active { transform: scale(0.98); }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .modal-overlay {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .modal-enter { animation: modalUp 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+  @keyframes modalUp {
+    from { opacity: 0; transform: translateY(30px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  #qr-reader video { border-radius: 16px !important; }
+  #qr-reader { border: none !important; }
+  .toast {
+    animation: toastIn 0.35s cubic-bezier(0.22, 1, 0.36, 1), toastOut 0.3s ease-in 2.7s forwards;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(-24px) scale(0.9); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-8px); } }
+
+  .action-btn {
+    transition: all 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+  .action-btn:active { transform: scale(0.96); }
+  .action-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: currentColor;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .action-btn:active::after { opacity: 0.06; }
+
+  .stats-value {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  .delete-btn {
+    transition: all 0.15s;
+  }
+  .delete-btn:active { transform: scale(0.9); }
+</style>
+</head>
+<body class="bg-bg-page min-h-screen pb-24">
+
+<!-- Toast Container -->
+<div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-2 w-[85%] max-w-sm"></div>
+
+<!-- Header -->
+<div class="bg-gradient-to-b from-primary to-primary-dark sticky top-0 z-50 px-4 pt-4 pb-3">
+  <h1 class="text-lg font-bold text-white text-center tracking-wide">发票扫码助手</h1>
+</div>
+
+<!-- Scan Button Area -->
+<div class="px-4 mt-5">
+  <div class="card bg-white p-5 text-center">
+    <p class="text-xs text-gray-400 mb-4 tracking-wider">一扫一条 · 本地缓存 · 随时导出 Excel</p>
+    <button onclick="openScanner()" class="scan-btn w-full py-4 rounded-2xl text-white font-semibold text-base flex items-center justify-center gap-2.5 transition-all">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
+      </svg>
+      扫描发票
+    </button>
+  </div>
+</div>
+
+<!-- Stats + Invoice List -->
+<div class="px-4 mt-5">
+  <!-- Stats Bar -->
+  <div class="card bg-white px-5 py-3.5 mb-4">
+    <div class="flex justify-between items-center">
+      <div class="flex items-baseline gap-1.5">
+        <span class="text-xs text-gray-400 font-medium">已扫描</span>
+        <span class="text-xl font-bold text-primary stats-value" id="scan-count">0</span>
+        <span class="text-xs text-gray-400">条</span>
+      </div>
+      <div class="h-5 w-px bg-gray-200"></div>
+      <div class="flex items-baseline gap-1.5">
+        <span class="text-xs text-gray-400 font-medium">总金额</span>
+        <span class="text-xl font-bold text-success stats-value" id="total-amount">0.00</span>
+        <span class="text-xs text-gray-400">元</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- List -->
+  <div id="invoice-list" class="flex flex-col gap-2.5"></div>
+  <div id="empty-state" class="card bg-white py-16 text-center">
+    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-bg-page flex items-center justify-center">
+      <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"/>
+      </svg>
+    </div>
+    <div class="text-gray-400 text-sm font-medium">暂无发票记录</div>
+    <div class="text-gray-300 text-xs mt-1.5">点击上方按钮开始扫描</div>
+  </div>
+
+
+</div>
+
+<!-- Custom Dialog -->
+<div id="dialog-overlay" class="fixed inset-0 z-[200] hidden">
+  <div class="modal-overlay absolute inset-0 bg-black/50" onclick="cancelDialog()"></div>
+  <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[85%] max-w-sm bg-white rounded-2xl z-10 modal-enter overflow-hidden">
+    <div class="px-5 pt-5 pb-3">
+      <div id="dialog-title" class="text-base font-bold text-gray-800 text-center mb-2"></div>
+      <div id="dialog-message" class="text-sm text-gray-500 text-center mb-3"></div>
+      <div id="dialog-input-wrap" class="hidden">
+        <input id="dialog-input" type="text" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" placeholder="">
+      </div>
+    </div>
+    <div id="dialog-buttons" class="flex border-t border-gray-100"></div>
+  </div>
+</div>
+
+<!-- Fixed Bottom Action Bar -->
+<div id="action-bar" class="fixed bottom-0 left-0 right-0 z-50 bg-bg-page/90 backdrop-blur-md px-4 pt-2 pb-4 hidden" style="padding-bottom: max(16px, env(safe-area-inset-bottom));">
+  <div class="flex gap-3">
+    <button onclick="exportExcel()" class="flex-1 card bg-white py-3 text-sm font-medium text-primary flex items-center justify-center gap-1.5">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+      导出 Excel
+    </button>
+    <button onclick="clearAll()" class="flex-1 card bg-white py-3 text-sm font-medium text-danger flex items-center justify-center gap-1.5">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+      </svg>
+      清空全部
+    </button>
+  </div>
+</div>
+
+<!-- Scanner Modal -->
+<div id="scanner-modal" class="fixed inset-0 z-[100] hidden">
+  <div class="modal-overlay absolute inset-0 bg-black/50" onclick="closeScanner()"></div>
+  <div class="modal-enter absolute inset-x-3 top-12 bottom-12 bg-white rounded-3xl flex flex-col overflow-hidden z-10 shadow-2xl">
+    <div class="flex items-center justify-between px-5 py-4">
+      <h3 class="font-bold text-gray-800 text-base">扫描发票二维码</h3>
+      <button onclick="closeScanner()" class="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors">
+        <svg class="w-4.5 h-4.5 text-gray-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="flex-1 px-4 pb-4 flex flex-col">
+      <div id="qr-reader" class="flex-1 rounded-2xl overflow-hidden bg-gray-900"></div>
+      <div class="mt-3">
+        <div id="scan-status" class="text-center text-sm text-gray-400 mb-3">对准二维码自动识别</div>
+        <button onclick="closeScanner()" class="w-full py-3 rounded-2xl text-sm font-semibold bg-gray-100 text-gray-600 transition-colors active:bg-gray-200">
+          关闭
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'invoice_scanner_data';
+let html5QrCode = null;
+let cameraStarted = false;
+let scanning = false;
+let lastScannedText = '';
+let lastScannedTime = 0;
+
+function loadInvoices() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+  } catch { return []; }
+}
+
+function saveInvoices(list) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+}
+
+function parseInvoiceQR(raw) {
+  const text = raw.trim();
+  const parts = text.split(',');
+  const mkId = () => Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  const now = () => new Date().toLocaleString('zh-CN');
+
+  if (parts.length >= 6 && (parts[0] === '01' || parts[0] === '04' || parts[0] === '10' || parts[0] === '08')) {
+    let number = parts[3] || '';
+    let amount = parts[4] || '';
+    let date = parts[5] || '';
+
+    if (date && date.length === 8) {
+      date = date.substring(0, 4) + '-' + date.substring(4, 6) + '-' + date.substring(6, 8);
+    }
+
+    let parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount)) parsedAmount = 0;
+
+    return { number, amount: parsedAmount.toFixed(2), date, raw: text, scannedAt: now(), id: mkId() };
+  }
+
+  return { number: '', amount: '0.00', date: '', raw: text, scannedAt: now(), id: mkId() };
+}
+
+function renderList() {
+  const list = loadInvoices();
+  const container = document.getElementById('invoice-list');
+  const emptyState = document.getElementById('empty-state');
+  const actionBar = document.getElementById('action-bar');
+  const scanCount = document.getElementById('scan-count');
+  const totalAmount = document.getElementById('total-amount');
+
+  scanCount.textContent = list.length;
+  const total = list.reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
+  totalAmount.textContent = total.toFixed(2);
+
+  if (list.length === 0) {
+    container.innerHTML = '';
+    emptyState.classList.remove('hidden');
+    actionBar.classList.add('hidden');
+    return;
+  }
+
+  emptyState.classList.add('hidden');
+  actionBar.classList.remove('hidden');
+
+  container.innerHTML = list.map((inv, idx) => `
+    <div class="invoice-card card bg-white px-4 py-3" data-id="${inv.id}">
+      <div class="flex items-start justify-between mb-1.5">
+        <div class="flex items-start gap-2">
+          <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-light text-primary text-[10px] font-bold mt-0.5">${list.length - idx}</span>
+          <span class="text-[13px] text-gray-600">发票日期：<b class="text-gray-700">${inv.date || '-'}</b>，金额：<b class="text-success">${inv.amount}</b></span>
+        </div>
+        <button onclick="deleteInvoice('${inv.id}')" class="text-xs text-danger bg-danger-light px-2 py-0.5 rounded-lg ml-2 flex-shrink-0">删除</button>
+      </div>
+      <div class="pl-7 text-[13px] text-gray-600">发票号码：<b class="text-gray-700">${inv.number || '未识别'}</b></div>
+    </div>
+  `).join('');
+}
+
+function showToast(msg, type = 'success') {
+  const styles = {
+    success: 'bg-success/95 text-white',
+    error: 'bg-danger/95 text-white',
+    info: 'bg-primary/95 text-white',
+  };
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast px-4 py-3 rounded-2xl text-sm font-medium shadow-xl text-center ${styles[type] || styles.info}`;
+  el.textContent = msg;
+  container.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+function openScanner() {
+  const modal = document.getElementById('scanner-modal');
+  modal.classList.remove('hidden');
+  lastScannedText = '';
+  scanning = true;
+  document.getElementById('scan-status').textContent = '对准二维码自动识别';
+
+  if (!html5QrCode) {
+    html5QrCode = new Html5Qrcode('qr-reader');
+  }
+
+  if (cameraStarted) {
+    try { html5QrCode.resume(); } catch(e) {}
+    return;
+  }
+
+  document.getElementById('scan-status').textContent = '正在启动摄像头...';
+  html5QrCode.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
+    onScanSuccess,
+    () => {}
+  ).then(() => {
+    cameraStarted = true;
+    document.getElementById('scan-status').textContent = '对准二维码自动识别';
+  }).catch(err => {
+    document.getElementById('scan-status').textContent = '摄像头启动失败';
+    showToast('无法访问摄像头，请检查权限', 'error');
+  });
+}
+
+function closeScanner() {
+  const modal = document.getElementById('scanner-modal');
+  scanning = false;
+  if (html5QrCode && cameraStarted) {
+    try { html5QrCode.pause(true); } catch(e) {}
+  }
+  modal.classList.add('hidden');
+}
+
+function onScanSuccess(decodedText) {
+  const now = Date.now();
+  if (decodedText === lastScannedText && now - lastScannedTime < 3000) {
+    return;
+  }
+  lastScannedText = decodedText;
+  lastScannedTime = now;
+
+  const invoice = parseInvoiceQR(decodedText);
+  const list = loadInvoices();
+
+  closeScanner();
+
+  const duplicate = invoice.number ? list.find(inv => inv.number === invoice.number) : null;
+  if (duplicate) {
+    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    setTimeout(async () => {
+      const result = await showDialog({
+        title: '发票重复',
+        message: `发票号 ${invoice.number} 已存在（¥${duplicate.amount}），是否仍要保存？`,
+        buttons: [
+          { label: '跳过', value: 'cancel' },
+          { label: '保存', value: 'ok', primary: true },
+        ],
+      });
+      if (result === 'ok') saveInvoice(invoice);
+    }, 300);
+    return;
+  }
+
+  saveInvoice(invoice);
+}
+
+function saveInvoice(invoice) {
+  const list = loadInvoices();
+  list.unshift(invoice);
+  saveInvoices(list);
+  renderList();
+
+  if (navigator.vibrate) navigator.vibrate(100);
+  showToast(`扫描成功 ¥${invoice.amount}`, 'success');
+
+  fetch('/api/log', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(invoice),
+  }).catch(() => {});
+}
+
+// ========== Custom Dialog ==========
+let dialogResolve = null;
+
+function showDialog({ title, message, input, placeholder, buttons }) {
+  return new Promise(resolve => {
+    dialogResolve = resolve;
+    document.getElementById('dialog-title').textContent = title || '';
+    document.getElementById('dialog-message').textContent = message || '';
+    const inputWrap = document.getElementById('dialog-input-wrap');
+    const inputEl = document.getElementById('dialog-input');
+    if (input) {
+      inputWrap.classList.remove('hidden');
+      inputEl.value = '';
+      inputEl.placeholder = placeholder || '';
+      setTimeout(() => inputEl.focus(), 100);
+    } else {
+      inputWrap.classList.add('hidden');
+    }
+    const btnContainer = document.getElementById('dialog-buttons');
+    btnContainer.innerHTML = buttons.map((btn, i) =>
+      `<button onclick="resolveDialog('${btn.value}')" class="flex-1 py-3.5 text-sm font-semibold ${i > 0 ? 'border-l border-gray-100' : ''} ${btn.primary ? 'text-primary' : 'text-gray-500'}">${btn.label}</button>`
+    ).join('');
+    document.getElementById('dialog-overlay').classList.remove('hidden');
+  });
+}
+
+function resolveDialog(value) {
+  document.getElementById('dialog-overlay').classList.add('hidden');
+  if (dialogResolve) {
+    const inputEl = document.getElementById('dialog-input');
+    const inputWrap = document.getElementById('dialog-input-wrap');
+    const hasInput = !inputWrap.classList.contains('hidden');
+    dialogResolve(hasInput ? inputEl.value : value);
+    dialogResolve = null;
+  }
+}
+
+function cancelDialog() {
+  document.getElementById('dialog-overlay').classList.add('hidden');
+  if (dialogResolve) { dialogResolve(null); dialogResolve = null; }
+}
+
+// ========== Data Management ==========
+
+function deleteInvoice(id) {
+  const list = loadInvoices().filter(inv => inv.id !== id);
+  saveInvoices(list);
+  renderList();
+  showToast('已删除', 'info');
+}
+
+async function clearAll() {
+  const list = loadInvoices();
+  if (list.length === 0) return;
+  const result = await showDialog({
+    title: '清空确认',
+    message: `确定清空全部 ${list.length} 条记录？`,
+    buttons: [
+      { label: '取消', value: 'cancel' },
+      { label: '清空', value: 'ok', primary: true },
+    ],
+  });
+  if (result !== 'ok') return;
+  saveInvoices([]);
+  renderList();
+  showToast('已清空全部记录', 'info');
+}
+
+async function exportExcel() {
+  const list = loadInvoices();
+  if (list.length === 0) {
+    showToast('没有数据可导出', 'error');
+    return;
+  }
+
+  const employeeName = await showDialog({
+    title: '导出 Excel',
+    message: '请输入所属员工姓名（可留空）',
+    input: true,
+    placeholder: '员工姓名',
+    buttons: [
+      { label: '取消', value: '__cancel__' },
+      { label: '导出', value: 'ok', primary: true },
+    ],
+  });
+  if (employeeName === null || employeeName === '__cancel__') return;
+
+  showToast('正在生成 Excel...', 'info');
+  fetch('/api/export', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ invoices: list, employeeName }),
+  })
+  .then(resp => resp.json())
+  .then(data => {
+    if (data.url) {
+      window.location.href = data.url;
+    } else {
+      showToast(data.error || '导出失败', 'error');
+    }
+  })
+  .catch(() => showToast('导出失败，请重试', 'error'));
+}
+
+renderList();
+</script>
+</body>
+</html>
