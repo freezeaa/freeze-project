@@ -1,0 +1,37 @@
+server {
+    listen 80;
+    server_name invoice.example.com;
+
+    client_max_body_size 20m;
+
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+    }
+}
+
+# 如果证书已经签好，可改成下面这种 443 配置。
+# server {
+#     listen 443 ssl http2;
+#     server_name invoice.example.com;
+#
+#     ssl_certificate /etc/letsencrypt/live/invoice.example.com/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/invoice.example.com/privkey.pem;
+#
+#     client_max_body_size 20m;
+#
+#     location / {
+#         proxy_pass http://127.0.0.1:5000;
+#         proxy_http_version 1.1;
+#         proxy_set_header Host $host;
+#         proxy_set_header X-Real-IP $remote_addr;
+#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#         proxy_set_header Connection "";
+#     }
+# }

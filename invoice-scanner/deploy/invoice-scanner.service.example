@@ -1,0 +1,15 @@
+[Unit]
+Description=Invoice Scanner Flask Service
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/freeze-project/invoice-scanner
+EnvironmentFile=/home/ubuntu/freeze-project/invoice-scanner/deploy/server.env
+ExecStart=/home/ubuntu/freeze-project/invoice-scanner/scripts/run_server.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

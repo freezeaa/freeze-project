@@ -6,19 +6,29 @@ from flask import Flask, render_template, request, send_from_directory, jsonify
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 
-app = Flask(__name__)
-EXPORT_DIR = os.path.join(os.path.dirname(__file__), "static", "exports")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+APP_HOST = os.getenv("APP_HOST", "0.0.0.0")
+APP_PORT = int(os.getenv("APP_PORT", "5000"))
+APP_DEBUG = os.getenv("APP_DEBUG", "false").lower() in {"1", "true", "yes", "on"}
+EXPORT_DIR = os.getenv("EXPORT_DIR", os.path.join(BASE_DIR, "static", "exports"))
+LOG_PATH = os.getenv("LOG_PATH", os.path.join(BASE_DIR, "scanner.log"))
+
 os.makedirs(EXPORT_DIR, exist_ok=True)
+log_dir = os.path.dirname(LOG_PATH)
+if log_dir:
+    os.makedirs(log_dir, exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("scanner.log", encoding="utf-8"),
+        logging.FileHandler(LOG_PATH, encoding="utf-8"),
     ],
 )
 log = logging.getLogger(__name__)
+
+app = Flask(__name__)
 
 
 @app.route("/")
@@ -92,7 +102,7 @@ def export_excel():
 
 if __name__ == "__main__":
     print("\n" + "=" * 50)
-    print("  发票扫码助手 - 本地服务已启动")
-    print("  访问地址: http://localhost:5000")
+    print("  发票扫码助手已启动")
+    print(f"  监听地址: http://{APP_HOST}:{APP_PORT}")
     print("=" * 50 + "\n")
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host=APP_HOST, port=APP_PORT, debug=APP_DEBUG)

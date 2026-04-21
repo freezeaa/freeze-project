@@ -30,13 +30,24 @@ cd invoice-scanner
 # 创建虚拟环境并安装依赖（首次）
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 
 # 启动服务
-python3 app.py
+python app.py
 ```
 
 服务启动后，本地访问：`http://localhost:5000`
+
+### 方式三：服务器生产启动
+
+```bash
+cd invoice-scanner
+python3 -m venv venv
+./venv/bin/python -m pip install -r requirements.txt
+bash scripts/run_server.sh
+```
+
+这条命令会用 Gunicorn 在 `127.0.0.1:5000` 启动，适合放在 Nginx 后面。
 
 ## 获取公网访问地址
 
@@ -80,6 +91,105 @@ Android 浏览器会直接触发下载。
 | Tailwind CSS | CSS 框架（CDN 引入） |
 | openpyxl | Python Excel 文件生成库 |
 | Cloudflare Tunnel | 免费公网隧道，提供 HTTPS 访问 |
+
+## 服务器部署（Nginx + 域名）
+
+如果准备把项目迁到服务器，并通过正式域名访问，推荐结构：
+
+```text
+域名
+  -> Nginx
+  -> 127.0.0.1:5000
+  -> Gunicorn
+  -> Flask app
+```
+
+### 需要准备什么
+
+- 一台 Linux 服务器（推荐 Ubuntu）
+- 域名已经解析到服务器公网 IP
+- 服务器已安装：`python3`、`python3-venv`、`nginx`、`git`
+- 后续如需 HTTPS，可再安装 `certbot`
+
+### 仓库里已经提供的生产部署文件
+
+- `scripts/run_server.sh`：生产启动脚本，运行 Gunicorn
+- `deploy/server.env.example`：环境变量示例
+- `deploy/invoice-scanner.service.example`：systemd 服务示例
+- `deploy/nginx.invoice-scanner.conf.example`：Nginx 配置示例
+
+### 部署步骤示例
+
+```bash
+cd /home/ubuntu
+git clone https://github.com/freezeaa/freeze-project.git
+cd freeze-project/invoice-scanner
+python3 -m venv venv
+./venv/bin/python -m pip install -r requirements.txt
+cp deploy/server.env.example deploy/server.env
+bash scripts/run_server.sh
+```
+
+### systemd 示例
+
+把 `deploy/invoice-scanner.service.example` 复制到：
+
+```bash
+/etc/systemd/system/invoice-scanner.service
+```
+
+然后按实际部署目录修改里面的路径，再执行：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable invoice-scanner
+sudo systemctl start invoice-scanner
+sudo systemctl status invoice-scanner
+```
+
+### Nginx 示例
+
+把 `deploy/nginx.invoice-scanner.conf.example` 复制到服务器，例如：
+
+```bash
+/etc/nginx/sites-available/invoice-scanner.conf
+```
+
+按你的正式域名把下面这项改掉：
+
+```text
+server_name invoice.example.com;
+```
+
+然后启用并重载：
+
+```bash
+sudo ln -s /etc/nginx/sites-available/invoice-scanner.conf /etc/nginx/sites-enabled/invoice-scanner.conf
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### 后续如果要启 HTTPS
+
+等域名解析已经生效后，可执行：
+
+```bash
+sudo certbot --nginx -d invoice.example.com
+```
+
+它会自动签证书并改好 Nginx 的 443 配置。
+
+### 本地还能不能继续跑
+
+可以。本地仍然继续用：
+
+```bash
+bash start.sh
+```
+
+也就是说：
+- `start.sh` 继续服务本地开发 + Tunnel
+- `scripts/run_server.sh` 专门服务服务器生产环境
 
 ## 导出文件定时清理
 
@@ -125,7 +235,12 @@ invoice-scanner/
 │   └── exports/           # 导出的 Excel 文件
 ├── scripts/
 │   ├── cleanup_exports.py # 清理导出文件，只保留最新 20 个
-│   └── run_cleanup.sh     # cron 调用入口脚本
+│   ├── run_cleanup.sh     # cron 调用入口脚本
+│   └── run_server.sh      # Gunicorn 生产启动脚本
+├── deploy/
+│   ├── server.env.example                 # 服务器环境变量示例
+│   ├── invoice-scanner.service.example    # systemd 示例
+│   └── nginx.invoice-scanner.conf.example # Nginx 示例
 ├── cloudflared            # Cloudflare Tunnel 可执行文件
 ├── start.sh               # 一键启动脚本
 ├── requirements.txt       # Python 依赖
