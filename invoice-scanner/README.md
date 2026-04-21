@@ -81,6 +81,39 @@ Android 浏览器会直接触发下载。
 | openpyxl | Python Excel 文件生成库 |
 | Cloudflare Tunnel | 免费公网隧道，提供 HTTPS 访问 |
 
+## 导出文件定时清理
+
+项目包含导出文件清理脚本，用于每天自动清理 `static/exports/`，只保留最新 20 个导出文件。
+
+### 手动执行
+
+```bash
+cd invoice-scanner
+bash scripts/run_cleanup.sh
+```
+
+### 系统 cron 配置示例
+
+```cron
+0 0 * * * /Users/jiebin.yu/test-yu/freeze-project/invoice-scanner/scripts/run_cleanup.sh >/dev/null 2>&1
+```
+
+### 后续如果迁移到云服务器，怎么改
+
+只需要修改 cron 里这一段脚本绝对路径：
+
+```cron
+/Users/jiebin.yu/test-yu/freeze-project/invoice-scanner/scripts/run_cleanup.sh
+```
+
+比如项目以后部署到云服务器目录：
+
+```cron
+0 0 * * * /home/ubuntu/freeze-project/invoice-scanner/scripts/run_cleanup.sh >/dev/null 2>&1
+```
+
+`run_cleanup.sh` 会自动定位项目目录，并优先使用项目自己的 `venv/bin/python`，所以通常不需要再改脚本内部逻辑。
+
 ## 项目结构
 
 ```
@@ -90,6 +123,9 @@ invoice-scanner/
 │   └── index.html         # 前端页面
 ├── static/
 │   └── exports/           # 导出的 Excel 文件
+├── scripts/
+│   ├── cleanup_exports.py # 清理导出文件，只保留最新 20 个
+│   └── run_cleanup.sh     # cron 调用入口脚本
 ├── cloudflared            # Cloudflare Tunnel 可执行文件
 ├── start.sh               # 一键启动脚本
 ├── requirements.txt       # Python 依赖
