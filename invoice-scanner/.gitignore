@@ -1,0 +1,12 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local runtime artifacts
+flask.out
+cloudflared.out
+*.pid
+scanner.log
+
+# Generated exports
+static/exports/
