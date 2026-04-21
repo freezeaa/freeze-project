@@ -10,3 +10,6 @@ scanner.log
 
 # Generated exports
 static/exports/
+
+# Local tunnel secrets
+/tunnel.local.env
